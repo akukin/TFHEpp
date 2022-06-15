@@ -18,7 +18,8 @@ namespace TFHEpp {
 static thread_local std::random_device trng;
 static thread_local randen::Randen<uint64_t> generator(trng());
 #else
-static thread_local std::random_device generator;
+// static thread_local std::random_device generator;
+static thread_local std::default_random_engine generator(0);
 #endif
 
 // https://qiita.com/saka1_p/items/e8c4dfdbfa88449190c5
@@ -92,10 +93,11 @@ inline void MulInFD(std::array<double, N> &res, const std::array<double, N> &a,
     }
 }
 
-// Be careful about memory accesss (We assume b has relatively high memory access cost)
+// Be careful about memory accesss (We assume b has relatively high memory
+// access cost)
 template <uint32_t N>
 inline void FMAInFD(std::array<double, N> &res, const std::array<double, N> &a,
-             const std::array<double, N> &b)
+                    const std::array<double, N> &b)
 {
     // for (int i = 0; i < N / 2; i++) {
     //     res[i] = std::fma(a[i], b[i], res[i]);

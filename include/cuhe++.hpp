@@ -1,12 +1,12 @@
 #pragma once
 
-#include "INTorus.hpp"
 #include <array>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
-namespace cuHEpp
-{
+
+#include "INTorus.hpp"
+namespace cuHEpp {
 
 template <uint8_t bit>
 uint32_t BitReverse(uint32_t in)
@@ -16,7 +16,8 @@ uint32_t BitReverse(uint32_t in)
         return (BitReverse<bit / 2>(in & ((1U << (bit / 2)) - 1))
                 << (bit + 1) / 2) |
                center | BitReverse<bit / 2>(in >> ((bit + 1) / 2));
-    } else {
+    }
+    else {
         return in;
     }
 }
@@ -33,13 +34,12 @@ inline std::array<std::array<INTorus, 1U << Nbit>, 2> TwistGen()
     std::array<std::array<INTorus, 1U << Nbit>, 2> twist;
     const INTorus w = INTorus(W).Pow(1U << (32 - Nbit - 1));
     twist[0][0] = twist[1][0] = INTorus(1, false);
-    for (uint32_t i = 1; i < N; i++)
-        twist[1][i] = twist[1][i - 1] * w;
-    std::cout << w.value << "\t" << twist[1][0].value << "\t" << twist[1][1].value << "\t" << twist[1][N - 1].value << std::endl;
+    for (uint32_t i = 1; i < N; i++) twist[1][i] = twist[1][i - 1] * w;
+    // std::cout << w.value << "\t" << twist[1][0].value << "\t" <<
+    // twist[1][1].value << "\t" << twist[1][N - 1].value << std::endl;
     assert((twist[1][N - 1] * w).Pow(2).value == 1);
     twist[0][N - 1] = twist[1][N - 1] * w * w;
-    for (uint32_t i = 2; i < N; i++)
-        twist[0][N - i] = twist[0][N - i + 1] * w;
+    for (uint32_t i = 2; i < N; i++) twist[0][N - i] = twist[0][N - i + 1] * w;
     assert((twist[0][1] * w).value == 1);
     return twist;
 }
@@ -52,10 +52,8 @@ inline std::array<std::array<INTorus, 1U << Nbit>, 2> TableGen()
     std::array<std::array<INTorus, N>, 2> table;
     const INTorus w = INTorus(W).Pow(1U << (32 - Nbit));
     table[0][0] = table[1][0] = INTorus(1, false);
-    for (uint32_t i = 1; i < N; i++)
-        table[1][i] = table[1][i - 1] * w;
-    for (uint32_t i = 1; i < N; i++)
-        table[0][i] = table[1][N - i];
+    for (uint32_t i = 1; i < N; i++) table[1][i] = table[1][i - 1] * w;
+    for (uint32_t i = 1; i < N; i++) table[0][i] = table[1][N - i];
     return table;
 }
 
@@ -124,8 +122,7 @@ inline void INTT(std::array<INTorus, 1 << Nbit> &res,
     for (int i = 0; i < (1 << Nbit); i++)
         for (int j = 0; j < (1 << Nbit); j++)
             tmp[j] += res[i] * table[(i * j) % (1 << Nbit)];
-    for (int i = 0; i < (1 << Nbit); i++)
-        res[i] = tmp[i];
+    for (int i = 0; i < (1 << Nbit); i++) res[i] = tmp[i];
     /* int Nlen = 1 << Nbit;
     int mask = Nlen - 1;
     for (int i = 0; i < (1 << Nbit - 1); i++) {
@@ -159,9 +156,9 @@ inline void TwistMulInvert(std::array<INTorus, 1 << Nbit> &res,
                                  (static_cast<__uint128_t>(a[i]) * P) >> 64),
                              true) *
                      twist[i];
-    } else {
-        for (int i = 0; i < N; i++)
-            res[i] = INTorus(a[i], false) * twist[i];
+    }
+    else {
+        for (int i = 0; i < N; i++) res[i] = INTorus(a[i], false) * twist[i];
     }
 }
 
@@ -244,8 +241,7 @@ void NTT(std::array<INTorus, 1 << Nbit> &res,
     for (int i = 0; i < (1 << Nbit); i++)
         for (int j = 0; j < (1 << Nbit); j++)
             tmp[j] += res[i] * table[(i * j) % (1 << Nbit)];
-    for (int i = 0; i < (1 << Nbit); i++)
-        res[i] = tmp[i];
+    for (int i = 0; i < (1 << Nbit); i++) res[i] = tmp[i];
 }
 
 template <typename T = uint32_t, uint32_t Nbit>
@@ -261,7 +257,8 @@ inline void TwistMulDirect(std::array<T, 1 << Nbit> &res,
                 (static_cast<__uint128_t>((a[i] * twist[i] * invN).value)
                  << 64) /
                 P);
-    } else {
+    }
+    else {
         for (int i = 0; i < N; i++)
             res[i] = static_cast<T>((a[i] * twist[i] * invN).value);
     }
@@ -285,8 +282,7 @@ void PolyMullvl1(std::array<T, 1 << Nbit> &res, std::array<T, 1 << Nbit> &a,
     std::array<INTorus, 1 << Nbit> ntta, nttb;
     TwistINTT<T, Nbit>(ntta, a, table[1], twist[1]);
     TwistINTT<T, Nbit>(nttb, b, table[1], twist[1]);
-    for (int i = 0; i < (1U << Nbit); i++)
-        ntta[i] *= nttb[i];
+    for (int i = 0; i < (1U << Nbit); i++) ntta[i] *= nttb[i];
     TwistNTT<T, Nbit>(res, ntta, table[0], twist[0]);
 }
-} // namespace cuHEpp
+}  // namespace cuHEpp
