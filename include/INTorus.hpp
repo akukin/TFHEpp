@@ -4,21 +4,54 @@
 #include <cassert>
 #include <cstdint>
 
-namespace cuHEpp {
+namespace cuHEpp
+{
 template <typename T>
 constexpr bool false_v = false;
-
-constexpr uint64_t P = (((1ULL << 32) - 1) << 32) + 1;
+constexpr uint64_t invpow2[31] = {
+    9007061815787521ULL,
+    13510592723681281ULL,
+    15762358177628161ULL,
+    16888240904601601ULL,
+    17451182268088321ULL,
+    17732652949831681ULL,
+    17873388290703361ULL,
+    17943755961139201ULL,
+    17978939796357121ULL,
+    17996531713966081ULL,
+    18005327672770561ULL,
+    18009725652172801ULL,
+    18011924641873921ULL,
+    18013024136724481ULL,
+    18013573884149761ULL,
+    18013848757862401ULL,
+    18013986194718721ULL,
+    18014054913146881ULL,
+    18014089272360961ULL,
+    18014106451968001ULL,
+    18014115041771521ULL,
+    18014119336673281ULL,
+    18014121484124161ULL,
+    18014122557849601ULL,
+    18014123094712321ULL,
+    18014123363143681ULL,
+    18014123497359361ULL,
+    18014123564467201ULL,
+    18014123598021121ULL,
+    18014123614798081ULL,
+    18014123623186561ULL};
+constexpr uint64_t P = (1ULL << 54) - (1ULL << 38) + 1;
 
 // this class defines operations over integaer torus.
-class INTorus {
-public:
+class INTorus
+{
+  public:
     uint64_t value;
     INTorus() { value = 0; }
     INTorus(uint64_t data, bool modulo = true)
     {
         if (modulo)
-            value = data + static_cast<uint32_t>(-(data >= P));
+            value = data % P;
         else
             value = data;
     }
@@ -26,17 +59,16 @@ public:
     // return this + b mod P.
     INTorus operator+(const INTorus &b) const
     {
-        uint64_t tmp = this->value + b.value;
+        uint64_t tmp = static_cast<uint64_t>((static_cast<__uint128_t>(this->value) + b.value) % P);
         return INTorus(
-            tmp + static_cast<uint32_t>(-(tmp < b.value || tmp >= P)), false);
+            tmp, false);
     }
 
     INTorus &operator+=(const INTorus &b)
     {
-        this->value += b.value;
+        uint64_t tmp = static_cast<uint64_t>((static_cast<__uint128_t>(this->value) + b.value) % P);
         *this = INTorus(
-            this->value + static_cast<uint32_t>(
-                              -(this->value < b.value || this->value >= P)),
+            tmp,
             false);
         return *this;
     }
@@ -44,28 +76,25 @@ public:
     // return this - b mod P.
     INTorus operator-(const INTorus &b) const
     {
-        uint64_t tmp = this->value - b.value;
-        return INTorus(tmp - static_cast<uint32_t>(-(tmp > (this->value))),
+        uint64_t tmp = static_cast<uint64_t>((static_cast<__uint128_t>(this->value) + P - b.value) % P);
+        return INTorus(tmp,
                        false);
     }
 
     INTorus operator-=(const INTorus &b)
     {
-        INTorus tmp = *this - b;
-        *this = tmp;
+        uint64_t tmp = static_cast<uint64_t>((static_cast<__uint128_t>(this->value) + P - b.value) % P);
+        *this = INTorus(tmp,
+                        false);
         return *this;
     }
 
     INTorus operator*(const INTorus &b) const
     {
-        __uint128_t tmp = static_cast<__uint128_t>(this->value) * b.value;
-        uint32_t *tmpa = reinterpret_cast<uint32_t *>(&tmp);
-        uint64_t res = ((static_cast<uint64_t>(tmpa[1]) + tmpa[2]) << 32) +
-                       tmpa[0] - tmpa[3] - tmpa[2];
-        uint64_t lo = static_cast<uint64_t>(tmp);
-        res -= static_cast<uint32_t>(-((res > lo) && (tmpa[2] == 0)));
-        res += static_cast<uint32_t>(-((res < lo) && (tmpa[2] != 0)));
-        return INTorus(res);
+        __uint128_t tmpa = static_cast<__uint128_t>(this->value) * b.value;
+        uint64_t tmp = static_cast<uint64_t>(tmpa % P);
+        return INTorus(tmp,
+                       false);
     }
 
     INTorus operator*=(const INTorus &b)
@@ -81,110 +110,14 @@ public:
             return *this;
         }
         // t[0] = templ,t[1] = tempul, t[2] = tempuu
-        else if (l < 32) {
-            uint64_t templ, tempu, res;
-            templ = this->value << l;
-            tempu = this->value >> (64 - l);
-            res = templ + (tempu << 32) - tempu;
-            res +=
-                static_cast<uint32_t>(-(res < templ));  // tempuu is always 0.
-            return INTorus(res);
-        }
-        else if (l == 32) {
-            uint64_t templ, tempul, tempuu, res;
-            templ = this->value << l;
-            tempul = static_cast<uint32_t>(this->value >> (64 - l));
-            tempuu = 0;
-            res = templ + (tempul << 32) - tempuu - tempul;
-            res -= static_cast<uint32_t>(-((res > templ) && (tempul == 0)));
-            res += static_cast<uint32_t>(-((res < templ) && (tempul != 0)));
-            return INTorus(res);
-        }
-        else if (l < 64) {
-            uint64_t templ, tempul, tempuu, res;
-            templ = static_cast<uint32_t>(this->value << (l - 32));
-            tempul = static_cast<uint32_t>(this->value >> (64 - l));
-            tempuu = this->value >> (96 - l);
-            res = ((templ + tempul) << 32) - tempuu - tempul;
-            res -= static_cast<uint32_t>(
-                -((res > (templ << 32)) && (tempul == 0)));
-            res += static_cast<uint32_t>(
-                -((res < (templ << 32)) && (tempul != 0)));
-            return INTorus(res);
-        }
-        else if (l == 64) {
-            uint64_t templ, tempu, res;
-            templ = static_cast<uint32_t>(this->value);
-            templ = (templ << 32) - templ;
-            // templ += static_cast<uint32_t>(-(templ >= P));//mod P
-            tempu = this->value >> (96 - l);
-            res = templ - tempu;
-            res -= static_cast<uint32_t>(-(res > (templ)));
-            return INTorus(res);
-        }
-        else if (l < 96) {
-            // different from cuFHE
-            uint64_t templ, tempu, res;
-            templ = static_cast<uint32_t>(this->value << (l - 64));
-            templ = (templ << 32) - templ;
-            // templ += static_cast<uint32_t>(-(templ >= P)); //mod P
-            tempu = this->value >> (96 - l);
-            res = templ - tempu;
-            res -= static_cast<uint32_t>(-(res > (templ)));
-            return INTorus(res);
-        }
-        else if (l == 96) {
-            uint64_t templ, tempu, res;
-            templ = P - (this->value);
-            tempu = 0;
-            res = tempu + templ;
-            res += static_cast<uint32_t>(-(res < tempu));
-            return INTorus(res);
-        }
-        else if (l < 128) {
-            // Same as cuFHE
-            uint64_t templ, tempu, res;
-            templ = this->value << (l - 96);
-            tempu = this->value >> (160 - l);
-            res = templ + (tempu << 32) - tempu;
-            res += static_cast<uint32_t>(-(res < templ));
-            return INTorus(P - INTorus(res).value);
-        }
-        else if (l == 128) {
-            uint64_t templ, tempul /*,tmempuu*/;
-            INTorus res;
-            templ = static_cast<uint32_t>(this->value);
-            tempul = static_cast<uint32_t>(this->value >> (160 - l));
-            // res = -((templ+tempul)<<32)+tempul-tempuu;
-            res = INTorus(tempul, false) - INTorus(templ << 32, false) -
-                  INTorus(tempul << 32, false);  //-INTorus(tempuu,false);
-            return res;
-        }
-        else if (l < 160) {
-            uint64_t /*templul,*/ templ, tempul, tempuu;
-            INTorus res;
-            templ = static_cast<uint32_t>(this->value << (l - 128));
-            tempul = static_cast<uint32_t>(this->value >> (160 - l));
-            tempuu = this->value >> (192 - l);
-            // res = -((templ+tempul)<<32)+tempul-tempuu;
-            res = INTorus(tempul + tempuu, false) -
-                  INTorus(templ << 32, false) - INTorus((tempul << 32), false);
-            return res;
-        }
-        else if (l == 160) {
-            uint64_t templ, tempu;
-            INTorus res;
-            templ = static_cast<uint32_t>(this->value);
-            tempu = this->value >> (192 - l);
-            res = INTorus(templ + tempu, false) - INTorus(templ << 32, false);
-            return res;
-        }
         else {
-            uint64_t templ, tempu, res;
-            templ = static_cast<uint32_t>(this->value) << (l - 160);
-            tempu = this->value >> (192 - l);
-            res = templ + tempu - (templ << 32);
-            res -= static_cast<uint32_t>(-(res > tempu));
+            uint64_t res = this->value;
+            for (int i = l; i >= 63; i -= 63) {
+                __uint128_t tmp = static_cast<__uint128_t>(res) << 63;
+                res = static_cast<uint64_t>(tmp % P);
+            }
+            __uint128_t tmp = static_cast<__uint128_t>(res) << (l % 63);
+            res = static_cast<uint64_t>(tmp % P);
             return INTorus(res);
         }
     }
@@ -192,7 +125,8 @@ public:
     INTorus Pow(uint64_t e) const
     {
         INTorus res(1, false);
-        for (uint64_t i = 0; i < e; i++) res *= *this;
+        for (uint64_t i = 0; i < e; i++)
+            res *= *this;
         return res;
     }
 
@@ -204,11 +138,9 @@ public:
 };
 
 // defined on [1,31]
+
 inline INTorus InvPow2(uint8_t nbit)
 {
-    uint32_t low, high;
-    low = (1 << (32 - nbit)) + 1;
-    high = -low;
-    return INTorus((static_cast<uint64_t>(high) << 32) + low);
+    return INTorus(invpow2[nbit - 1]);
 }
-}  // namespace cuHEpp
+} // namespace cuHEpp
